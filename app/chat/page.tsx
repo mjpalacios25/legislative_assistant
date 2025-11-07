@@ -4,9 +4,6 @@ import Completion from "../completion/completion";
 import Query from "../completion/query";
 import Config from "../components/config";
 import { Content } from "next/font/google";
-import { QueryClient ,QueryClientProvider } from "@tanstack/react-query";
-
-const queryClient = new QueryClient();
 
 
 export default function Page() {
@@ -37,11 +34,10 @@ export default function Page() {
 
     const config = <Config title="Chat" description= {description} />
   return (
-    <QueryClientProvider client={queryClient}>
     <MainContent config= {config} >
-        <Query />
+      <ContentContainer></ContentContainer>
+        {/* <Query /> */}
     </MainContent>
-  </QueryClientProvider>
   )
   
 }   

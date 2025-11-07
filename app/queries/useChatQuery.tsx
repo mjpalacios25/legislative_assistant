@@ -23,7 +23,7 @@ export function useChatQuery({
   const query = useQuery({
     queryKey: ["chat", key],
     queryFn: () =>
-      import.meta.env.VITE_ADAPTER_TYPE === "in-memory"
+      process.env.NEXT_PUBLIC_ADAPTER_TYPE === "in-memory"
         ? fetchMockChat()
         : fetchChat({ messages, tools, endpoint, modelName }),
     staleTime: Infinity,
