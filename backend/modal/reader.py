@@ -1,17 +1,7 @@
-# %% [markdown]
-# # Reader LLM
-
-
-# %%
-
 from transformers import pipeline
 from mlx_lm import load, generate
 
 model, tokenizer = load("Qwen/Qwen3-4B-MLX-4bit")
-
-# print(type(tokenizer)
-
-
 
 
 
