@@ -1,47 +1,44 @@
-import { Textarea } from "@/app/components/ui/textarea";
+"use client";
+
+import { Textarea } from "@/app/components/textarea";
 import { Button } from "@/app/components/button";
 import { Label } from "@/app/components/label";
 import { Message } from "@/app/llm/types";
 import { CornerDownLeft } from "lucide-react";
-import { StreamedText } from "@/app/llm/StreamedText";
+import StreamedText from "@/app/llm/StreamedText";
 import { Bot, User } from "lucide-react";
 import { useChat } from "./useChat";
-import { useEffect, useRef } from "react";
-
-// interface Message {
-//   id: string;
-//   role: "system" | "user" | "assistant";
-//   content: string;
-// }
+import { useEffect, useRef, KeyboardEvent } from "react";
 
 const defaultInitMessages: Message[] = [];
 
-
 export function Chat({
   initMessages = defaultInitMessages,
-  endpoint
-
 }: {
   initMessages?: Message[];
-  endpoint?: string;
 }) {
   const { messages, submit, input, setInput, isLoading } = useChat({
     initMessages,
-    endpoint
   });
 
   const { messagesEndRef } = useScrollToMessage({ messages });
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!isLoading && input.trim()) {
+        submit();
+      }
+    }
+  };
+
   return (
-    <div className="relative flex h-full min-h-[50vh] flex-col overflow-hidden rounded-xl bg-muted/50 lg:col-span-2">
-      <div
-        className="flex flex-1 flex-col overflow-y-scroll"
-        style={{ maxHeight: "calc(100vh - 58px - 32px - 16px - 116px)" }}
-      >
+    <div className="flex h-full flex-col overflow-hidden rounded-xl bg-white shadow-sm mb-4">
+      <div className="flex flex-1 flex-col overflow-y-auto">
         <MessageList messages={messages} isLoading={isLoading} />
         <div ref={messagesEndRef} className="h-2" />
       </div>
-      <div className="relative mx-4 overflow-hidden rounded-lg border bg-background focus-within:ring-1 focus-within:ring-ring">
+      <div className="relative mx-4 mb-4 overflow-hidden rounded-lg border bg-background focus-within:ring-1 focus-within:ring-ring">
         <Label htmlFor="message" className="sr-only">
           Message
         </Label>
@@ -51,6 +48,7 @@ export function Chat({
           className="min-h-12 resize-none border-0 p-3 shadow-none focus-visible:ring-0"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
         <div className="flex items-center p-3 pt-0">
           <Button
@@ -70,7 +68,7 @@ export function Chat({
 }
 
 function useScrollToMessage({ messages }: { messages: Message[] }) {
-  const messagesEndRef = useRef<HTMLDivElement>(null); // Ref for the scroll target
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView();
   }, [messages]);

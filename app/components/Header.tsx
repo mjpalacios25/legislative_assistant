@@ -1,12 +1,10 @@
-// import React from "react"
+import { Sparkles } from "lucide-react";
 
-import Config from "./config";
-
-export default function Header({ config = <Config /> }: { config?: React.ReactNode }) {
+export default function Header() {
   return (
-    <header className="sticky top-0 z-10 flex h-[57px] items-center gap-1 border-b bg-background px-4">
-      <h1 className="text-xl font-semibold">AI Playground</h1>
-      
+    <header className="sticky top-0 z-10 flex h-[57px] items-center gap-2 border-b bg-background px-4">
+      <Sparkles className="size-5" />
+      <h1 className="text-xl font-semibold">AI Legislative Assistant</h1>
     </header>
   );
 }

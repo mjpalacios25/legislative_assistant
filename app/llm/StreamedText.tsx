@@ -13,9 +13,11 @@ export default function StreamedText({
       {isLoading && text === "" ? (
         <PulsatingDot />
       ) : (
-        <ReactMarkdown className="prose" remarkPlugins={[remarkBreaks]}>
-          {text + (isLoading ? "  ⬤" : "")}
-        </ReactMarkdown>
+        <div className="prose">
+          <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+            {text + (isLoading ? "  ⬤" : "")}
+          </ReactMarkdown>
+        </div>
       )}
     </div>
   );
