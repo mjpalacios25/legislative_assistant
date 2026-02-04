@@ -27,18 +27,18 @@ export default function Sidebar() {
      {
       icon: <MessageCircleQuestion className="size-5" />,
       label: "Legislative Q&A",
-      paths: ["/chat", "/rag", ""],
+      paths: ["/rag", ""],
     },
     {
       icon: <MessagesSquare className="size-5" />,
       label: "Policy Research",
       paths: ["/chat/research"],
     },
-    {
-      icon: <Wrench className="size-5" />,
-      label: "Tools",
-      paths: ["/llm-with-tools"],
-    },
+    // {
+    //   icon: <Wrench className="size-5" />,
+    //   label: "Tools",
+    //   paths: ["/llm-with-tools"],
+    // },
     // {
     //   icon: <Code className="size-5" />,
     //   label: "Code",

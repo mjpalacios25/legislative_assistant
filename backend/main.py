@@ -22,6 +22,7 @@ app = FastAPI()
 # https://fastapi.tiangolo.com/tutorial/cors/
 origins = [
     "http://localhost",
+    "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:5174",
     # "https://build-ai-driven-web-applications.vercel.app",
