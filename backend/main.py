@@ -9,9 +9,9 @@ from fastapi.middleware.cors import (
 
 # load_dotenv()
 
-from config import settings
+# from config import settings
 
-from chat.completion import router as completion_router
+# from chat.completion import router as completion_router
 from chat.rag import router as rag_router
 # from chat.chat_router import chat_router
 # from chat.chat_with_context import chat_with_context_router
@@ -47,7 +47,7 @@ async def root(params: HelloWorldParams = Depends()):
     return {"message": "Hello World", "params": params.model_dump()}
 
 
-app.include_router(completion_router)
+# app.include_router(completion_router)
 app.include_router(rag_router)
 # app.include_router(chat_router)
 # app.include_router(chat_with_context_router)

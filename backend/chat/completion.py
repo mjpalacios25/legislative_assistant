@@ -64,15 +64,15 @@ async def stream(request: Request, payload: ChatPayload):
 
 
 async def send_completion_events(messages, chat):
-    async for patch in chat.astream_log(messages):
-        for op in patch.ops:
-            if op["op"] == "add" and op["path"] == "/streamed_output/-":
-                content = (
-                    op["value"] if isinstance(op["value"], str) else op["value"].content
-                )  # output format is not stable depending on langchain subclass
-                json_dict = {"type": "llm_chunk", "content": content}
-                json_str = json.dumps(json_dict)
-                yield f"data: {json_str}\n\n"
+    try:
+        async for chunk in chat.astream(messages):
+            content = chunk.content
+            if not content:
+                continue
+            yield f"data: {json.dumps({'type': 'llm_chunk', 'content': content})}\n\n"
+    except Exception as e:
+        print(f"[streaming error] {e}")
+        yield f"data: {json.dumps({'type': 'llm_chunk', 'content': f'[Error: {e}]'})}\n\n"
 
 # async def send_completion_events(messages, chat):
 #     async for patch in chat.astream_log(messages):

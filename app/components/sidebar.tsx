@@ -27,12 +27,12 @@ export default function Sidebar() {
      {
       icon: <MessageCircleQuestion className="size-5" />,
       label: "Legislative Q&A",
-      paths: ["/rag", ""],
+      paths: ["/", ""],
     },
     {
       icon: <MessagesSquare className="size-5" />,
       label: "Policy Research",
-      paths: ["/chat/research"],
+      paths: ["/rag/research"],
     },
     // {
     //   icon: <Wrench className="size-5" />,

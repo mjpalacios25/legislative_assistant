@@ -1,4 +1,3 @@
-# %%
 from langchain_huggingface import HuggingFaceEmbeddings
 from multiprocessing import Process, freeze_support, set_start_method
 from langchain_neo4j import Neo4jVector
@@ -13,7 +12,7 @@ parent_dir = os.path.dirname(current_dir)
 
 # Add the parent directory to sys.path
 sys.path.append(parent_dir)
-from config import settings
+from backend.config.main import settings
 
 
 

@@ -7,7 +7,7 @@ const BASE_API_URL =
 
 export async function fetchChat({
   messages,
-  modelName = "gpt-4o-mini", //if using Claude, insert model name here
+  modelName = "Qwen/Qwen3-4B-MLX-4bit", //if using Claude, insert model name here
   tools = [],
   endpoint = "/api/chat",
 }: {
@@ -25,6 +25,7 @@ export async function fetchChat({
   };
 
   const response = await fetch(`${BASE_API_URL}${endpoint}`, fetchOptions);
+  console.log("response from fetch chat", response)
   if (!response || !response.ok || !response.body) {
     throw new Error(`Invalid response: ${response}`);
   }

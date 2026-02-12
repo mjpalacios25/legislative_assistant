@@ -460,7 +460,7 @@ def get_text(client, bill, congress, chamber, number):
 #         print('Error:', err)
 
 # %%
-from config import settings
+from backend.config.main import settings
 api_key = settings.CONGRESS_API_KEY
 client = CDGClient(api_key, response_format="json", offset = 0)
 

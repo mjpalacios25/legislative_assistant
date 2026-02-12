@@ -23,9 +23,10 @@ export function useChatQuery({
   const query = useQuery({
     queryKey: ["chat", key],
     queryFn: () =>
-      process.env.NEXT_PUBLIC_ADAPTER_TYPE === "in-memory"
-        ? fetchMockChat()
-        : fetchChat({ messages, tools, endpoint, modelName }),
+      fetchChat({ messages, tools, endpoint, modelName }),
+      // process.env.NEXT_PUBLIC_ADAPTER_TYPE === "in-memory"
+      //   ? fetchMockChat()
+      //   : fetchChat({ messages, tools, endpoint, modelName }),
     staleTime: Infinity,
     enabled: !!messages.filter(({ role }) => role === "user").length,
   });

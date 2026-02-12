@@ -10,6 +10,7 @@ import {
   QueryResult,
   UseChatQuery,
 } from "@/app/llm/types";
+import { stripThinkBlocks } from "@/app/llm/stripThinkBlocks";
 
 export function useCompletion({
   messages,
@@ -24,7 +25,7 @@ export function useCompletion({
     data: reader,
     isLoading,
     isError,
-  } = useChatQuery({ messages, endpoint: "/api/simple-chat" });
+  } = useChatQuery({ messages, endpoint: "/api/chat" });
   const [completion, setCompletion] = useState<string>("");
   useEffect(() => {
     if (reader === undefined) return;
@@ -46,7 +47,7 @@ export function useCompletion({
           }
           const value = LLMEventValueSchema.parse(rawValue);
           if (value.type === "llm_chunk") {
-            setCompletion((prev) => prev + value.content);
+            setCompletion((prev) => stripThinkBlocks(prev + value.content));
           }
         }
       },
