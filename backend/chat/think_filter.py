@@ -26,6 +26,7 @@ class ThinkBlockFilter:
         """Process the next chunk and return any safe-to-emit text."""
         self._buffer += chunk
         return self._drain()
+        # return "".join(self._buffer)
 
     def flush(self) -> str:
         """Flush remaining content at stream end.

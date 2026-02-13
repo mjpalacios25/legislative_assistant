@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 from typing import List
@@ -12,7 +13,7 @@ import re
 from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
 from langchain.messages import HumanMessage, SystemMessage, AIMessage
-from vectorstore.retreiver import build_rag_messages, vector_store
+from vectorstore.retreiver import build_rag_messages, vector_store, answer_with_rag
 from chat.think_filter import ThinkBlockFilter
 
 # --- Monkey-patch MLXPipeline._call to fix formatter incompatibility ---
@@ -160,7 +161,7 @@ ChatMLX._stream = _patched_chat_stream
 
 llm = MLXPipeline.from_model_id(
     "Qwen/Qwen3-4B-MLX-4bit",
-    pipeline_kwargs={"max_tokens": 1000, "temp": 0.1},
+    pipeline_kwargs={"max_tokens": 4096, "temp": 0.1},
 )
 
 chat_model = ChatMLX(llm=llm)
@@ -200,7 +201,7 @@ async def stream(request: Request, payload: ChatPayload):
     ]
     chat = chat_model
     return StreamingResponse(
-        send_completion_events(messages, chat=chat),
+        send_rag_completion_events(messages, chat=chat),
         media_type="text/event-stream",
     )
 
@@ -233,24 +234,60 @@ async def send_completion_events(messages, chat):
     assistant_message_id = str(uuid.uuid4())
     yield f"data: {json.dumps({'type': 'new_message', 'message': {'id': assistant_message_id, 'role': 'assistant', 'content': ''}})}\n\n"
 
-    # Single LLM call — stream via astream with think-block filtering
+    # Single LLM call — stream via astream_log with think-block filtering
     think_filter = ThinkBlockFilter()
-    try:
-        async for chunk in chat.astream(rag_messages):
-            raw = chunk.content
-            # print("==> raw content: ", raw)
-            if not raw:
-                continue
-            filtered = think_filter.feed(raw)
-            print("==> filtered content: ", filtered)
-            if filtered:
-                yield f"data: {json.dumps({'type': 'llm_chunk', 'content': filtered})}\n\n"
-        remaining = think_filter.flush()
-        if remaining:
-            yield f"data: {json.dumps({'type': 'llm_chunk', 'content': remaining})}\n\n"
-    except Exception as e:
-        print(f"[streaming error] {e}")
-        yield f"data: {json.dumps({'type': 'llm_chunk', 'content': f'[Error: {e}]'})}\n\n"
+    async for patch in chat.astream_log(rag_messages):
+        for op in patch.ops:
+            if op["op"] == "add" and op["path"] == "/streamed_output/-":
+                raw = (
+                    op["value"] if isinstance(op["value"], str) else op["value"].content
+                )
+                print("==> raw content: ", raw)
+                filtered = think_filter.feed(raw)
+                if filtered:
+                    yield f"data: {json.dumps({'type': 'llm_chunk', 'content': filtered})}\n\n"
+    remaining = think_filter.flush()
+    if remaining:
+        yield f"data: {json.dumps({'type': 'llm_chunk', 'content': remaining})}\n\n"
+
+
+async def send_rag_completion_events(messages, chat):
+    result = await chat.ainvoke(
+        [
+            {
+                "role": "system",
+                "content": "your role is to evaluate whether a user is asking a question related to the Every Student Succeeds Act (ESSA). If so, reword the question for clarity then return the reworded question.  Otherwise answer [NULL].",
+            },
+            messages[-1],
+        ]
+    )
+    result.content = re.sub(r"<think>.*?</think>\s*", "", result.content, flags=re.DOTALL)
+
+    print("=> reworded question: ", result.content)
+
+    KG_Query = result.content
+
+    if KG_Query == "[NULL]":
+        async for event in send_completion_events(messages, chat):
+            yield event
+        return
+
+    response, relevant_docs = await answer_with_rag(
+        question=KG_Query,
+        llm=chat,
+        knowledge_index=vector_store,
+    )
+
+    answer_text = response.content
+
+    assistant_message_id = str(uuid.uuid4())
+    yield f"data: {json.dumps({'type': 'new_message', 'message': {'id': assistant_message_id, 'role': 'assistant', 'content': ''}})}\n\n"
+
+    words = answer_text.split(" ")
+    for i, word in enumerate(words):
+        chunk = word if i == 0 else " " + word
+        yield f"data: {json.dumps({'type': 'llm_chunk', 'content': chunk})}\n\n"
+        await asyncio.sleep(0.03)
 
 
 

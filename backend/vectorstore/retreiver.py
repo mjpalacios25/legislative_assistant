@@ -11,14 +11,6 @@ import sys
 import os
 import re
 
-# # Get the path to the current script's directory
-# current_dir = os.path.dirname(os.path.abspath(__file__))
-
-# # Get the path to the parent directory (one level up)
-# parent_dir = os.path.dirname(current_dir)
-
-# # Add the parent directory to sys.path
-# sys.path.append(parent_dir)
 from config.main import settings
 
 # --- Monkey-patch MLXPipeline._call to fix formatter incompatibility ---
@@ -116,7 +108,7 @@ MLXPipeline._stream = _patched_stream
 #Define the MLX LLM from Huggingface
 llm = MLXPipeline.from_model_id(
     "Qwen/Qwen3-4B-MLX-4bit",
-    pipeline_kwargs={"max_tokens": 500, "temp": 0.1},
+    pipeline_kwargs={"max_tokens": 4096, "temp": 0.1},
 )
 
 chat_model = ChatMLX(llm=llm)

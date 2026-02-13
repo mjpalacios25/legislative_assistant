@@ -1,6 +1,5 @@
 import jsonpatch from "fast-json-patch";
 import { LLMEventValueSchema, Message } from "@/app/llm/types";
-import { stripThinkBlocks } from "@/app/llm/stripThinkBlocks";
 import { useChatQuery as useChatAPIQuery } from "@/app/queries/useChatQuery";
 import { ServerSentEvent, readTextStream } from "@/app/streaming/readTextStream";
 import { useCallback, useEffect, useState } from "react";
@@ -85,7 +84,7 @@ export function useChat({
                   { id: crypto.randomUUID(), role: "assistant" as const, content: value.content },
                 ];
               }
-              const newContent = stripThinkBlocks(lastMessage.content + value.content);
+              const newContent = lastMessage.content + value.content;
               return [
                 ...prev.slice(0, -1),
                 { ...lastMessage, content: newContent },
