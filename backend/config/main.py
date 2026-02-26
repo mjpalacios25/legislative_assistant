@@ -16,6 +16,8 @@ class DatabaseSettings(BaseSettings):
   NEO4J_USERNAME: str
   NEO4J_DB: str
   db_password: str
+  # LOGFIRE_TOKEN: str
+  # LOGFIRE_READ_TOKEN: str
 
 settings = DatabaseSettings()
 

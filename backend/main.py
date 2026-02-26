@@ -5,12 +5,6 @@ from fastapi.middleware.cors import (
     CORSMiddleware,
 )  # https://fastapi.tiangolo.com/tutorial/cors/
 
-# from dotenv import load_dotenv
-
-# load_dotenv()
-
-# from config import settings
-
 # from chat.completion import router as completion_router
 from chat.rag import router as rag_router
 # from chat.chat_router import chat_router
