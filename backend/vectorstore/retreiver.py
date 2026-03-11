@@ -118,7 +118,7 @@ EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L12-v2'
 
 embedding_model = HuggingFaceEmbeddings(
     model_name=EMBEDDING_MODEL_NAME,
-    multi_process=True,
+    multi_process=False,
     model_kwargs={
         "device": "mps"
     },

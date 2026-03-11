@@ -21,6 +21,7 @@ class DatabaseSettings(BaseSettings):
 
 settings = DatabaseSettings()
 
-if __name__ == '__main__':
-  settings = DatabaseSettings()
-  print(settings.model_dump())
+from pathlib import Path
+
+BASE_DIR = Path(__file__).parent.parent
+PUBLIC_DIR = BASE_DIR / "public" 
