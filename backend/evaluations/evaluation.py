@@ -8,12 +8,13 @@ from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
 from langchain_neo4j import Neo4jVector
 import asyncio
+import re
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from generate_dataset import Chunk, ChunkEval
 from typing import Literal, Optional
-from vectorstore.retreiver import answer_with_rag, vector_store
-from config.main import PUBLIC_DIR
+from vectorstore.retreiver import embedding_model
+from config.main import PUBLIC_DIR, settings
 import logfire
 import concurrent.futures
 import tabulate
@@ -26,20 +27,33 @@ import tabulate
 
 # chat_model = ChatMLX(llm=llm)
 
+def _normalize(text: str) -> str:
+    """Remove all whitespace and lowercase for robust comparison.
+
+    The evaluation dataset (questions.yaml) was generated using BeautifulSoup's
+    get_text() which concatenates XML text nodes with no separator, while the
+    Neo4j nodes were ingested using stripped_strings + " ".join() which adds a
+    space at every element boundary. Removing all whitespace before comparing
+    makes the comparison robust to this difference.
+    """
+    return re.sub(r'\s+', '', text).lower()
+
 #Create functions to calculate MRR and Recall
 
 def calculate_mrr(predictions: list[str], gt: list[str]):
+    norm_preds = [_normalize(p) for p in predictions]
     mrr = 0
     for label in gt:
-        if label in predictions:
-            # Find the relevant item that has the smallest index
-            mrr = max(mrr, 1 / (predictions.index(label) + 1))
+        norm_label = _normalize(label)
+        if norm_label in norm_preds:
+            mrr = max(mrr, 1 / (norm_preds.index(norm_label) + 1))
     return mrr
 
 
 def calculate_recall(predictions: list[str], gt: list[str]):
     # Calculate the proportion of relevant items that were retrieved
-    return len([label for label in gt if label in predictions]) / len(gt)
+    norm_preds = [_normalize(p) for p in predictions]
+    return len([label for label in gt if _normalize(label) in norm_preds]) / len(gt)
 
 def calculate_accuracy(predictions, gt):
     # Calculate the accuracy of the top result
@@ -54,9 +68,9 @@ k = [1, 3, 5, 10, 15, 20, 25, 30, 35, 40]
 def retrieve(
         knowledgeGraph: Neo4jVector,
         question: str,
-        max_k = 25
+        k= 40
     ):
-    docs = knowledgeGraph.similarity_search_with_score(query=question, k=max_k)
+    docs = knowledgeGraph.similarity_search_with_score(query=question, k=k)
 
     return [
         {"score": item[1], "doc": item[0].page_content} for item in docs
@@ -84,12 +98,12 @@ async def retrieve_results(
     question: str,
     knowledgeGraph: Neo4jVector,
     pool: ThreadPoolExecutor,
-    max_k=25,
+    k=40,
 ):
     loop = asyncio.get_running_loop()
     resp = await loop.run_in_executor(
         pool,
-        partial(retrieve, knowledgeGraph, question, max_k),
+        partial(retrieve, knowledgeGraph, question, k),
     )
     return [item["doc"] for item in resp]
 
@@ -112,12 +126,31 @@ def visualise_scores(result: EvaluationResult):
 async def main():
     logfire.configure()
 
+    # Plain store — no retrieval_query so raw doc text is returned (exact match
+    # to expected_output) and the k parameter is respected (no LIMIT override).
+
+    retrieval_query = """  
+    WITH node AS doc, score AS similarity
+    ORDER BY similarity DESC LIMIT 40
+    RETURN self AS text, similarity AS score, {} as metadata 
+
+    """
+    eval_vector_store = Neo4jVector.from_existing_index(
+        embedding=embedding_model,
+        url=settings.NEO4J_URL,
+        username=settings.NEO4J_USERNAME,
+        password=settings.db_password,
+        database=settings.NEO4J_DB,
+        index_name="ESSA",
+        retrieval_query=retrieval_query
+    )
+
     evaluation_queries = Dataset.from_file(PUBLIC_DIR / "questions.yaml")
     evaluation_queries.add_evaluator(RagMetricsEvaluator())
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         result = await evaluation_queries.evaluate(
-            partial(retrieve_results, knowledgeGraph=vector_store, pool=executor)
+            partial(retrieve_results, knowledgeGraph=eval_vector_store, pool=executor)
         )
 
     visualise_scores(result)

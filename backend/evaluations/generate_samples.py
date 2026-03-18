@@ -2,8 +2,9 @@ from bs4 import BeautifulSoup, Tag #for XML parsing
 import json
 import sys
 from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent)) 
+sys.path.append(str(Path(__file__).parent.parent))
 from config.main import PUBLIC_DIR
+import re
 
 #
 
@@ -20,7 +21,11 @@ def parseSections(xml_soup: BeautifulSoup):
     partATitleI = titleI.find(id = "H37898CE342274356A2E0C2E54F77E786")
     for section in partATitleI.find_all("section"):
         for subsection in section.find_all("subsection"):
-            allSubsections.append(subsection.text)
+            # Use stripped_strings + join to match how build_knowledge_graph.py
+            # stores text in Neo4j nodes (both put one space between XML elements).
+            strings = [s.replace("\n", "") for s in subsection.stripped_strings]
+            text = " ".join(strings)
+            allSubsections.append(text)
     return allSubsections
 
 Subsections = parseSections(soup)
