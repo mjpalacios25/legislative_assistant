@@ -15,7 +15,7 @@ class DatabaseSettings(BaseSettings):
   NEO4J_URL: str
   NEO4J_USERNAME: str
   NEO4J_DB: str
-  db_password: str
+  NEO4J_PW: str
   # LOGFIRE_TOKEN: str
   # LOGFIRE_READ_TOKEN: str
 
@@ -25,3 +25,4 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
 PUBLIC_DIR = BASE_DIR / "public" 
+PARSER_DIR = BASE_DIR / "sample" / "parser"

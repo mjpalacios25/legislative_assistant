@@ -1,12 +1,10 @@
 from bs4 import BeautifulSoup, Tag #for XML parsing
+import unicodedata
 import json
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from config.main import PUBLIC_DIR
-import re
-
-#
 
 
 # Create a list of subsections in Title I of ESSA
@@ -23,8 +21,8 @@ def parseSections(xml_soup: BeautifulSoup):
         for subsection in section.find_all("subsection"):
             # Use stripped_strings + join to match how build_knowledge_graph.py
             # stores text in Neo4j nodes (both put one space between XML elements).
-            strings = [s.replace("\n", "") for s in subsection.stripped_strings]
-            text = " ".join(strings)
+            text = ' '.join(subsection.get_text().split())
+            text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
             allSubsections.append(text)
     return allSubsections
 
