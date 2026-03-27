@@ -46,6 +46,7 @@ def calculate_mrr(predictions: list[str], gt: list[str]):
     for label in gt:
         norm_label = _normalize(label)
         if norm_label in norm_preds:
+            # Find the relevant item that has the smallest index
             mrr = max(mrr, 1 / (norm_preds.index(norm_label) + 1))
     return mrr
 
@@ -109,7 +110,11 @@ async def retrieve_results(
 
 #function to visualize the results
 def visualise_scores(result: EvaluationResult):
-    scores = result.averages().scores
+    averages = result.averages()
+    if averages is None:
+        print("No evaluation scores — all cases may have failed.")
+        return
+    scores = averages.scores
     # Format the scores in a more readable way
     formatted_scores = {
         k: round(v, 2) if isinstance(v, float) else v for k, v in scores.items()
@@ -132,14 +137,14 @@ async def main():
     retrieval_query = """  
     WITH node AS doc, score AS similarity
     ORDER BY similarity DESC LIMIT 40
-    RETURN self AS text, similarity AS score, {} as metadata 
+    RETURN doc.text AS text, similarity AS score, {} as metadata
 
     """
     eval_vector_store = Neo4jVector.from_existing_index(
         embedding=embedding_model,
         url=settings.NEO4J_URL,
         username=settings.NEO4J_USERNAME,
-        password=settings.db_password,
+        password=settings.NEO4J_PW,
         database=settings.NEO4J_DB,
         index_name="ESSA",
         retrieval_query=retrieval_query
