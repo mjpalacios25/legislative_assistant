@@ -4,8 +4,6 @@ An AI-powered Graph RAG application for legislative and policy research. Ask que
 
 Currently indexed: **Every Student Succeeds Act (ESSA)**
 
-![three-panel chat UI]()
-
 ### Knowledge Graph
 
 Bills are parsed into nodes and connected by relationships in a Neo4j knowledge graph. Each retrieval query traverses the graph to fetch the matched section plus its siblings, providing richer surrounding context to the LLM.
