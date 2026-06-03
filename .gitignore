@@ -10,6 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
+# python virtual environment
+/backend/venv/
+
 # testing
 /coverage
 

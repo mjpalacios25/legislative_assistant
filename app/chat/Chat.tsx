@@ -11,8 +11,7 @@ import { useEffect, useRef, KeyboardEvent } from "react";
 
 export interface Tool {
   name: string;
-  UI?: (props: any) => JSX.Element;
-
+  UI?: (props: any) => React.ReactNode;
 }const defaultInitMessages: Message[] = [];
 const defaultTools: Tool[] = [];
 
@@ -25,7 +24,7 @@ export function Chat({
   initMessages?: Message[];
   modelName?: string;
 }) {
-  const { messages, submit, input, setInput, isLoading } = useChat({
+  const { messages, submit, input, setInput, isLoading, isError } = useChat({
     initMessages,
     tools: tools.map(({name}) => name),
     modelName
@@ -45,11 +44,16 @@ export function Chat({
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl bg-white shadow-sm mb-4">
       <div className="flex flex-1 flex-col overflow-y-auto">
-        <MessageGroupList 
-          messages={messages} 
-          isLoading={isLoading} 
+        <MessageGroupList
+          messages={messages}
+          isLoading={isLoading}
           tools={tools}
         />
+        {isError && (
+          <p className="mx-4 mb-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+            Something went wrong. Please try again.
+          </p>
+        )}
         <div ref={messagesEndRef} className="h-2" />
       </div>
       <form 

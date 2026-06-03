@@ -2,7 +2,7 @@ import jsonpatch from "fast-json-patch";
 import { LLMEventValueSchema, Message } from "@/app/llm/types";
 import { useChatQuery as useChatAPIQuery } from "@/app/queries/useChatQuery";
 import { ServerSentEvent, readTextStream } from "@/app/streaming/readTextStream";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UseChatQuery } from "../llm/types";
 
 const defaultMessages: Message[] = [];
@@ -33,7 +33,8 @@ export function useChat({
   const [input, setInput] = useState<string>("");
   const [inputMessages, setInputMessages] = useState<Message[]>(initMessages);
   const [messages, setMessages] = useState<Message[]>(initMessages);
-  const [error, setError] = useState<any>(null);
+  const [error, setError] = useState<unknown>(null);
+  const activeAssistantIdRef = useRef<string | null>(null);
 
   const {
     data: reader,
@@ -44,17 +45,18 @@ export function useChat({
   useEffect(() => {
     if (reader === undefined) return;
     setIsReading(true);
+    activeAssistantIdRef.current = null;
     readTextStream({
       reader,
       onEvent: (event: ServerSentEvent) => {
         const { field, value: rawValue } = event;
-        console.log("event", event);
         if (field === "data") {
           const value = LLMEventValueSchema.parse(rawValue);
           if (value.type === "new_message") {
-            setMessages((prev) => {
-              return [...prev, value.message];
-            });
+            if (value.message.role === "assistant") {
+              activeAssistantIdRef.current = value.message.id;
+            }
+            setMessages((prev) => [...prev, value.message]);
           }
           if (value.type === "message_patch") {
             const { message_id, patch } = value;
@@ -75,19 +77,23 @@ export function useChat({
           }
           if (value.type === "llm_chunk") {
             setMessages((prev) => {
-              const lastMessage = prev
-                .filter(({ role }) => role === "assistant")
-                .at(-1);
-              if (!lastMessage) {
-                return [
-                  ...prev,
-                  { id: crypto.randomUUID(), role: "assistant" as const, content: value.content },
-                ];
+              const targetId = activeAssistantIdRef.current;
+              if (!targetId) {
+                const newMsg: Message = {
+                  id: crypto.randomUUID(),
+                  role: "assistant",
+                  content: value.content,
+                };
+                activeAssistantIdRef.current = newMsg.id;
+                return [...prev, newMsg];
               }
-              const newContent = lastMessage.content + value.content;
+              const targetIndex = prev.findIndex(({ id }) => id === targetId);
+              if (targetIndex === -1) return prev;
+              const target = prev[targetIndex];
               return [
-                ...prev.slice(0, -1),
-                { ...lastMessage, content: newContent },
+                ...prev.slice(0, targetIndex),
+                { ...target, content: target.content + value.content },
+                ...prev.slice(targetIndex + 1),
               ];
             });
           }
@@ -95,33 +101,29 @@ export function useChat({
       },
     })
       .then(() => setIsReading(false))
-      .catch((err: any) => {
-        console.log("Error reading stream: ", err);
+      .catch((err: unknown) => {
         setError(err);
         setIsReading(false);
       });
 
     return () => {
-      if (reader) reader?.cancel();
+      if (reader) reader.cancel();
     };
   }, [reader]);
 
   const reset = useCallback(() => {
     setInput("");
-    if (reader) {
-      reader?.cancel();
-    }
+    if (reader) reader.cancel();
     setInputMessages(initMessages);
     setMessages(initMessages);
   }, [initMessages, reader]);
 
   const cancel = useCallback(() => {
-    if (reader) {
-      reader?.cancel();
-    }
+    if (reader) reader.cancel();
   }, [reader]);
 
   const submit = useCallback(() => {
+    if (isReading || isLoading || !input.trim()) return;
     setInput("");
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -130,7 +132,7 @@ export function useChat({
     };
     setInputMessages((prev) => [...prev, userMessage]);
     setMessages((prev) => [...prev, userMessage]);
-  }, [input]);
+  }, [input, isReading, isLoading]);
 
   return {
     messages,

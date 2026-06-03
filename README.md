@@ -6,6 +6,12 @@ Currently indexed: **Every Student Succeeds Act (ESSA)**
 
 ![three-panel chat UI]()
 
+### Knowledge Graph
+
+Bills are parsed into nodes and connected by relationships in a Neo4j knowledge graph. Each retrieval query traverses the graph to fetch the matched section plus its siblings, providing richer surrounding context to the LLM.
+
+![ESSA Knowledge Graph](public/ESSA%20Node%20Viz.png)
+
 ---
 
 ## How it works
@@ -158,7 +164,7 @@ http://localhost:8000/docs
 
 ## Known issues
 
-- **MLX / langchain-community compatibility** — `langchain-community 0.4.1` passes a `formatter` kwarg to `mlx_lm.generate()` that `mlx-lm 0.28.3` rejects. Three monkey-patches in `backend/chat/rag.py` fix this at runtime. If you upgrade either library, test thoroughly before removing them.
+- **MLX / langchain-community compatibility** — `langchain-community 0.4.1` passes a `formatter` kwarg to `mlx_lm.generate()` that `mlx-lm 0.28.3` rejects. Three monkey-patches in `backend/llm/model.py` fix this at runtime. If you upgrade either library, test thoroughly before removing them.
 - **Apple Silicon only** — MLX does not run on x86. To run on other hardware, swap `MLXPipeline` / `ChatMLX` for an OpenAI-compatible client (e.g., `langchain-openai`) or a remote inference provider.
 
 ---
@@ -166,6 +172,7 @@ http://localhost:8000/docs
 ## Next steps
 
 - [ ] **Expand the knowledge graph** — Ingest additional legislation beyond ESSA (appropriations bills, IDEA, HEA, etc.)
+- [ ] **Optimize data injestion** — Sync eval and injestion methods for extracting legislative text.
 - [ ] **Link bills to the US Code** — Add relationships between bill sections and the US Code sections they amend
 - [ ] **Lawmaker relationships** — Add nodes for sponsors, co-sponsors, and committee members; enable queries like "which bills did Sen. X sponsor?"
 - [ ] **Regulation linkage** — Connect legislation to related CFR regulations for end-to-end policy tracing

@@ -1,13 +1,11 @@
 import { Message } from "@/app/llm/types";
 
-const BASE_API_URL =
-  // import.meta.env.VITE_BASE_API_URL || 
-  // import.meta.env.VITE_NEWLINE_APP_BACKEND_URL || 
-  "http://localhost:8000";
+const BASE_API_URL = process.env.NEXT_PUBLIC_API_URL;
+if (!BASE_API_URL) throw new Error("NEXT_PUBLIC_API_URL is not set");
 
 export async function fetchChat({
   messages,
-  modelName = "Qwen/Qwen3-4B-MLX-4bit", //if using Claude, insert model name here
+  modelName = "Qwen/Qwen3-4B-MLX-4bit",
   tools = [],
   endpoint = "/api/chat",
 }: {
@@ -25,13 +23,9 @@ export async function fetchChat({
   };
 
   const response = await fetch(`${BASE_API_URL}${endpoint}`, fetchOptions);
-  console.log("response from fetch chat", response)
-  if (!response || !response.ok || !response.body) {
-    throw new Error(`Invalid response: ${response}`);
+  if (!response.ok || !response.body) {
+    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
   }
 
-  // This data is a ReadableStream
-  // https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream
-  const readableStream = response.body;
-  return readableStream.getReader();
+  return response.body.getReader();
 }
