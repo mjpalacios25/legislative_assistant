@@ -46,14 +46,14 @@ class BillParser:
     
     #kick off parsing
     
-    def parse(self, id: str):
+    def parse(self): #removed id parameter since it is not required when parsing whole bills
 
         self.parse_bill()
 
         leg = self.xml_soup.bill
 
         ##parse titles
-        for titles in leg.find_all(id = id): #for production, go with find_all("title", id = True)
+        for titles in leg.find_all("title", id = True): #for production, go with find_all("title", id = True)
 
             self.parse_title(titles)
 

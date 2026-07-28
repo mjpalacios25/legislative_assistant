@@ -32,7 +32,7 @@ parser = BillParser(
     edge_columns= edge_columns
 )
 
-parser.parse("HBCB1043F254B467C880CA4632EB8661D")
+parser.parse()
 
 nodes_temp = parser.nodes_temp
 edges_temp = parser.edges_temp
