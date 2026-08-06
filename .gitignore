@@ -11,7 +11,11 @@
 !.yarn/versions
 
 # python virtual environment
-/backend/venv/
+/backend/.venv/
+
+# python bytecode
+__pycache__/
+*.pyc
 
 # testing
 /coverage
