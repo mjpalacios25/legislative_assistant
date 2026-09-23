@@ -12,6 +12,8 @@ from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
 from langchain.messages import HumanMessage
 
+from services.llm_service import astream_text
+
 
 
 llm = MLXPipeline.from_model_id(
@@ -64,11 +66,23 @@ async def stream(request: Request, payload: ChatPayload):
 
 
 async def send_completion_events(messages, chat):
+    """Stream a model reply as SSE ``llm_chunk`` events.
+
+    Parameters:
+        messages (list): The conversation to send to the model.
+        chat: The LangChain chat model to stream from.
+
+    Yields:
+        str: ``data: {...}`` SSE frames.
+
+    Delegates to ``services.llm_service.astream_text`` rather than calling
+    ``chat.astream`` directly, so this works on a synchronous backend too --
+    ChatHuggingFace's ``_astream`` assumes a HuggingFaceEndpoint async client
+    and raises AttributeError for a local pipeline.
+    """
+
     try:
-        async for chunk in chat.astream(messages):
-            content = chunk.content
-            if not content:
-                continue
+        async for content in astream_text(chat, messages):
             yield f"data: {json.dumps({'type': 'llm_chunk', 'content': content})}\n\n"
     except Exception as e:
         print(f"[streaming error] {e}")

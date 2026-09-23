@@ -5,12 +5,11 @@ class DatabaseSettings(BaseSettings):
                                     env_file_encoding='utf-8',
                                     case_sensitive=False,
                                     extra='ignore',
-                                    secrets_dir='settings/secrets'
                                   )
   # LANGCHAIN_TRACING_V2: str
   # LANGCHAIN_ENDPOINT: str
   # LANGCHAIN_API_KEY: str
-  # HF_TOKEN: str
+  HUGGINGFACEHUB_API_TOKEN: str
   # CONGRESS_API_KEY:str
   NEO4J_URL: str
   NEO4J_USERNAME: str
@@ -21,6 +20,7 @@ class DatabaseSettings(BaseSettings):
 
 settings = DatabaseSettings()
 
+#Creating paths for public and parser directories
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent

@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup, Tag, NavigableString
+from bs4 import BeautifulSoup, Tag
 import pandas as pd
 from typing import List, Dict
 import unicodedata
@@ -36,6 +36,16 @@ class BillParser:
         self.nodes_temp = []
         self.edges_temp = []
 
+    def handle_stripped_strings(self, element: Tag):
+        "handle stripped strings in the element"
+        clean_string = []
+        for string in element.stripped_strings:
+
+            string = string.replace("\n", "").replace("\t", "").replace("\r", " ")
+            clean_string.append(string)
+        clean_string = "".join(clean_string)
+        return clean_string
+
     @staticmethod
     def clean_text(element: Tag):
         if element is None:
@@ -48,14 +58,12 @@ class BillParser:
     
     def parse(self): #removed id parameter since it is not required when parsing whole bills
 
-        self.parse_bill()
-
-        leg = self.xml_soup.bill
+        leg = self.parse_bill(self.xml_soup)
 
         ##parse titles
         for titles in leg.find_all("title", id = True): #for production, go with find_all("title", id = True)
 
-            self.parse_title(titles)
+            self.parse_title(self.xml_soup, titles)
 
             # parse parts. need to add condition for parts nested inside of quoted tags
             for parts in titles.find_all("part", id = True):
@@ -95,22 +103,26 @@ class BillParser:
 
     # parse functions
 
-    def parse_bill(self):
-
+    def parse_bill(self, xml_soup: BeautifulSoup):
+        #have to add congress number
         node_data = {
-            "id": "S1177",
-            "number": "S1177",
-            "label": "Every Student Succeeds Act",
+            "id": xml_soup.bill.form.find("legis-num").string if xml_soup.bill.form.find("legis-num") else "123456",
+            "number": xml_soup.bill.form.find("legis-num").string if xml_soup.bill.form.find("legis-num") else "123456",
+            "label": xml_soup.bill.metadata.dublinCore.find("dc:title").string if xml_soup.bill.metadata.dublinCore.find("dc:title") else "",
             "type": "bill",
+            "congress": "114" if "One Hundred Fourteenth" in xml_soup.bill.form.congress else "114",
             "quoted": "false",
-            "text": "Every Student Succeeds Act"
+            "text": self.handle_stripped_strings(xml_soup.bill.form.find("official-title")) 
+
         }
 
         self.add_node(node_data)
 
-    def parse_title(self, title_element: Tag):
+        return xml_soup.bill
+
+    def parse_title(self, bill_element: BeautifulSoup, title_element: Tag):
         number = self.clean_text(title_element.enum)
-        text = self.clean_text(title_element.header)
+        text = f"Title {number}: {self.clean_text(title_element.header)}"
 
         # test = element.enum.string
         # print(test)
@@ -127,7 +139,7 @@ class BillParser:
 
         edge_data = {
             "source_id": title_element["id"],
-            "target_id": "S1177",
+            "target_id": bill_element.bill.form.find("legis-num").string if bill_element.bill.form.find("legis-num").string else "",
             "type": "part_of",
             "context": "",
         }
@@ -144,10 +156,10 @@ class BillParser:
         node_data = {
             "id": part_element["id"],
             "number": name,
-            "label": f"{name} {header[:100]} ..." if len(header) > 100 else f"{name} {header}",
+            "label": f"Part {name}. {header[:100]} ..." if len(header) > 100 else f"{name} {header}",
             "type": "part",
             "quoted": quoted_block,
-            "text": f"Part {name}: {header}"
+            "text": f"Part {name}. {header}"
         } 
 
         self.add_node(node_data)
@@ -205,7 +217,7 @@ class BillParser:
         node_data = {
             "id": subsection_element["id"],
             "number": name,
-            "label": f"{name} {header[:100]}" if len(header) > 100 else f"{name} {header}",
+            "label": f"{name}. {header[:100]}" if len(header) > 100 else f"{name} {header}",
             "type": "subsection",
             "quoted": quoted_block,
             "text": text
@@ -233,7 +245,7 @@ class BillParser:
         node_data = {
             "id": paragraph_element["id"],
             "number": name,
-            "label": f"{name} {text[:100]} ... " if len(text) > 100 else f"{name} {text}",
+            "label": f"{name}. {text[:100]} ... " if len(text) > 100 else f"{name} {text}",
             "type": "paragraph",
             "quoted": quoted_block,
             "text": f"{name} {header} {text}"
@@ -261,10 +273,10 @@ class BillParser:
         node_data = {
             "id": subpara_element["id"],
             "number": name,
-            "label": f"{name} {text[:100]} ... " if len(text) > 100 else f"{name} {text}",
+            "label": f"{name}. {text[:100]} ... " if len(text) > 100 else f"{name} {text}",
             "type": "subparagraph",
             "quoted": quoted_block,
-            "text": f"{name} {header} {text}"
+            "text": f"{name}. {header} {text}"
         
         } 
 
@@ -288,7 +300,7 @@ class BillParser:
         node_data = {
             "id": child_element["id"],
             "number": name,
-            "label": (text[:100] + "...") if len(text) > 100 else text,
+            "label": f"{name}. {text[:100]} ..." if len(text) > 100 else f"{name}. {text}",
             "type": "clause",
             "quoted": quoted_block,
             "text": f"{name} {text}"
@@ -315,7 +327,7 @@ class BillParser:
         node_data = {
             "id": child_element["id"],
             "number": name,
-            "label": (text[:100] + "...") if len(text) > 100 else text,
+            "label": f"{name}. {text[:100]} ..." if len(text) > 100 else f"{name}. {text}",
             "type": "subclause",
             "quoted": quoted_block,
             "text": f"{name} {text}"

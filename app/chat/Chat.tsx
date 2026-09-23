@@ -24,11 +24,12 @@ export function Chat({
   initMessages?: Message[];
   modelName?: string;
 }) {
-  const { messages, submit, input, setInput, isLoading, isError } = useChat({
-    initMessages,
-    tools: tools.map(({name}) => name),
-    modelName
-  });
+  const { messages, submit, input, setInput, isLoading, isError, error } =
+    useChat({
+      initMessages,
+      tools: tools.map(({ name }) => name),
+      modelName,
+    });
 
   const { messagesEndRef } = useScrollToMessage({ messages });
 
@@ -51,7 +52,7 @@ export function Chat({
         />
         {isError && (
           <p className="mx-4 mb-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-            Something went wrong. Please try again.
+            {error ?? "Something went wrong. Please try again."}
           </p>
         )}
         <div ref={messagesEndRef} className="h-2" />

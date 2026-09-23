@@ -26,7 +26,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      {/* Browser extensions inject attributes onto <body> before React
+          hydrates. suppressHydrationWarning applies to this element only, so
+          real mismatches inside the tree are still reported. */}
       <body
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers>

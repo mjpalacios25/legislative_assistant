@@ -1,6 +1,6 @@
-import asyncio
 import json
 import re
+import traceback
 import uuid
 from typing import List
 
@@ -8,12 +8,25 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from langchain.messages import HumanMessage, SystemMessage
 from llm.model import chat_model
-from vectorstore.retreiver import build_rag_messages, vector_store, answer_with_rag
+from vectorstore.retreiver import build_rag_messages, vector_store
 from chat.think_filter import ThinkBlockFilter
+from services.llm_service import acomplete, astream_text
 
 router = APIRouter()
+
+CLASSIFIER_PROMPT = (
+    "Decide whether the user's question relates to the Every Student Succeeds "
+    "Act (ESSA). If it does, reply with the question restated clearly in one "
+    "line. If it does not, reply with exactly [NULL].\n"
+    "Reply with that single line and nothing else. Do not explain your "
+    "reasoning, do not show your work, and do not add any preamble."
+)
+
+# The classifier only ever needs one short line. Without a ceiling this model
+# writes hundreds of tokens of deliberation, which both delays the first byte
+# by ~a minute and ends up embedded in the retrieval query.
+CLASSIFIER_MAX_TOKENS = 64
 
 
 class Message(BaseModel):
@@ -34,15 +47,6 @@ class ChatPayload(BaseModel):
     }
 
 
-def _extract_text(content) -> str:
-    if isinstance(content, str):
-        return content
-    return "".join(
-        block if isinstance(block, str) else block.get("text", "")
-        for block in content
-    )
-
-
 @router.post("/api/chat")
 async def stream(request: Request, payload: ChatPayload):
     if not payload.messages:
@@ -55,89 +59,156 @@ async def stream(request: Request, payload: ChatPayload):
     return StreamingResponse(
         send_rag_completion_events(messages, chat=chat_model),
         media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
-async def send_completion_events(messages, chat):
-    try:
-        result = await chat.ainvoke(
-            [
-                {
-                    "role": "system",
-                    "content": "your role is to evaluate whether a user is asking a question related to the Every Student Succeeds Act (ESSA). If so, reword the question for clarity then return the reworded question. Otherwise answer [NULL].",
-                },
-                messages[-1],
-            ]
+async def _classify_query(messages, chat) -> str:
+    """Ask the model to restate the user's question, or reject it as off-topic.
+
+    Parameters:
+        messages (list): The conversation so far; only the last entry is sent.
+        chat: The LangChain chat model to query.
+
+    Returns:
+        str: The reworded question, or "[NULL]" if it is not ESSA-related.
+
+    Sends the classifier system prompt plus the latest user message through
+    ``acomplete`` so the call runs off the event loop, then strips any
+    ``<think>`` reasoning block from the reply before returning it.
+    """
+
+    raw_content = await acomplete(
+        chat,
+        [
+            {"role": "system", "content": CLASSIFIER_PROMPT},
+            messages[-1],
+        ],
+        max_tokens=CLASSIFIER_MAX_TOKENS,
+    )
+    return re.sub(r"<think>.*?</think>\s*", "", raw_content, flags=re.DOTALL).strip()
+
+
+def _new_message_event(message_id: str) -> str:
+    """Build the SSE frame that opens an empty assistant message.
+
+    Parameters:
+        message_id (str): The id the client should attach subsequent chunks to.
+
+    Returns:
+        str: A ``data: {...}`` SSE frame of type "new_message".
+
+    Sent before any generation starts so the UI can render its loading
+    indicator immediately rather than sitting blank through the classifier call.
+    """
+
+    return (
+        "data: "
+        + json.dumps(
+            {
+                "type": "new_message",
+                "message": {"id": message_id, "role": "assistant", "content": ""},
+            }
         )
-        raw_content = _extract_text(result.content)
-        KG_Query = re.sub(r"<think>.*?</think>\s*", "", raw_content, flags=re.DOTALL).strip()
+        + "\n\n"
+    )
 
-        print("=> reworded question: ", KG_Query)
 
-        if KG_Query.upper() != "[NULL]":
-            rag_messages = await build_rag_messages(
-                question=KG_Query,
-                knowledge_index=vector_store,
-            )
-        else:
-            rag_messages = messages
+async def _stream_answer(chat, prompt_messages):
+    """Stream a model response as SSE ``llm_chunk`` events.
 
-        assistant_message_id = str(uuid.uuid4())
-        yield f"data: {json.dumps({'type': 'new_message', 'message': {'id': assistant_message_id, 'role': 'assistant', 'content': ''}})}\n\n"
+    Parameters:
+        chat: The LangChain chat model to stream from.
+        prompt_messages (list): The messages to send to the model.
 
-        think_filter = ThinkBlockFilter()
-        async for patch in chat.astream_log(rag_messages):
-            for op in patch.ops:
-                if op["op"] == "add" and op["path"] == "/streamed_output/-":
-                    raw = op["value"] if isinstance(op["value"], str) else op["value"].content
-                    filtered = think_filter.feed(raw)
-                    if filtered:
-                        yield f"data: {json.dumps({'type': 'llm_chunk', 'content': filtered})}\n\n"
-        remaining = think_filter.flush()
-        if remaining:
-            yield f"data: {json.dumps({'type': 'llm_chunk', 'content': remaining})}\n\n"
+    Yields:
+        str: Fully formed ``data: {...}`` SSE frames.
 
-    except Exception as e:
-        print(f"Error in completion: {e}")
-        yield f"data: {json.dumps({'type': 'error', 'message': 'An error occurred processing your request.'})}\n\n"
+    Pipes each chunk from ``astream_text`` through ``ThinkBlockFilter`` to drop
+    ``<think>`` reasoning, yielding only non-empty text. The filter is flushed
+    at the end to release anything it was holding back. The caller is expected
+    to have already sent the ``new_message`` frame these chunks append to.
+    """
+
+    think_filter = ThinkBlockFilter()
+    async for chunk in astream_text(chat, prompt_messages):
+        filtered = think_filter.feed(chunk)
+        if filtered:
+            yield f"data: {json.dumps({'type': 'llm_chunk', 'content': filtered})}\n\n"
+
+    remaining = think_filter.flush()
+    if remaining:
+        yield f"data: {json.dumps({'type': 'llm_chunk', 'content': remaining})}\n\n"
+
+
+def _error_event() -> str:
+    """Build the generic SSE error frame sent to the client.
+
+    Parameters:
+        None.
+
+    Returns:
+        str: A ``data: {...}`` SSE frame of type "error".
+
+    The detail stays server-side; the client only learns that the request
+    failed.
+    """
+
+    return (
+        "data: "
+        + json.dumps(
+            {
+                "type": "error",
+                "message": "An error occurred processing your request.",
+            }
+        )
+        + "\n\n"
+    )
 
 
 async def send_rag_completion_events(messages, chat):
-    try:
-        result = await chat.ainvoke(
-            [
-                {
-                    "role": "system",
-                    "content": "your role is to evaluate whether a user is asking a question related to the Every Student Succeeds Act (ESSA). If so, reword the question for clarity then return the reworded question. Otherwise answer [NULL].",
-                },
-                messages[-1],
-            ]
-        )
-        raw_content = _extract_text(result.content)
-        KG_Query = re.sub(r"<think>.*?</think>\s*", "", raw_content, flags=re.DOTALL).strip()
+    """Answer an ESSA question from the knowledge graph, streaming the reply.
 
+    Parameters:
+        messages (list): The conversation so far.
+        chat: The LangChain chat model to query.
+
+    Yields:
+        str: SSE frames for the assistant's reply, or an error frame.
+
+    Classifies the question first. Off-topic questions ("[NULL]") are answered
+    from the conversation alone. Otherwise it retrieves matching bill text via
+    ``build_rag_messages`` and streams the grounded answer. Any exception is
+    logged with a traceback and reported to the client as a generic error.
+    """
+
+    try:
+        # Sent first so the client can render its loading indicator immediately,
+        # instead of sitting blank while the classifier and retrieval run.
+        yield _new_message_event(str(uuid.uuid4()))
+
+        KG_Query = await _classify_query(messages, chat)
         print("=> reworded question: ", KG_Query)
 
         if KG_Query.upper() == "[NULL]":
-            async for event in send_completion_events(messages, chat):
+            # Off topic: answer from the conversation alone, without a second
+            # classifier call.
+            async for event in _stream_answer(chat, messages):
                 yield event
             return
 
-        answer_text, relevant_docs = await answer_with_rag(
+        rag_messages = await build_rag_messages(
             question=KG_Query,
-            llm=chat,
             knowledge_index=vector_store,
         )
 
-        assistant_message_id = str(uuid.uuid4())
-        yield f"data: {json.dumps({'type': 'new_message', 'message': {'id': assistant_message_id, 'role': 'assistant', 'content': ''}})}\n\n"
-
-        words = answer_text.split(" ")
-        for i, word in enumerate(words):
-            chunk = word if i == 0 else " " + word
-            yield f"data: {json.dumps({'type': 'llm_chunk', 'content': chunk})}\n\n"
-            await asyncio.sleep(0.03)
+        async for event in _stream_answer(chat, rag_messages):
+            yield event
 
     except Exception as e:
         print(f"Error in RAG completion: {e}")
-        yield f"data: {json.dumps({'type': 'error', 'message': 'An error occurred processing your request.'})}\n\n"
+        traceback.print_exc()
+        yield _error_event()

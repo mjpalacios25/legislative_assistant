@@ -1,9 +1,28 @@
-:ID	number	label	type	quoted	text	:LABEL
-H37898CE342274356A2E0C2E54F77E786	A	A Improving basic programs operated by State and local educational agencies	part	False	Part A: Improving basic programs operated by State and local educational agencies	Part
-H88AD5853F5584678B3ED2B11C0C01915	B	B State assessment grants	part	False	Part B: State assessment grants	Part
-H8DC34E8791584F6CB90F1654A4E5EBB3	B	B State assessment grants	part	True	Part B: State assessment grants	Part
-H5B0FF0F4DABE4823986055AD5275E967	C	C Education of migratory children	part	False	Part C: Education of migratory children	Part
-H8E2F31B964414D2A9D6F3243E3B10336	D	D Prevention and intervention programs for children and youth who are neglected, delinquent, or at-ris ...	part	False	Part D: Prevention and intervention programs for children and youth who are neglected, delinquent, or at-risk	Part
-H2763FE1692B84FDA8691A6569BCB2130	E	E Flexibility for equitable per-pupil funding	part	False	Part E: Flexibility for equitable per-pupil funding	Part
-H2A642A36CDD749259EF015B134E9636A	E	E Flexibility for equitable per-pupil funding	part	True	Part E: Flexibility for equitable per-pupil funding	Part
-HFA2AAD18472249AEAEA3495EFAE4DFB7	F	F General provisions	part	False	Part F: General provisions	Part
+:ID	number	label	type	congress	quoted	text	:LABEL
+H37898CE342274356A2E0C2E54F77E786	A	A Improving basic programs operated by State and local educational agencies	part		False	Part A. Improving basic programs operated by State and local educational agencies	Part
+H88AD5853F5584678B3ED2B11C0C01915	B	B State assessment grants	part		False	Part B. State assessment grants	Part
+H8DC34E8791584F6CB90F1654A4E5EBB3	B	B State assessment grants	part		True	Part B. State assessment grants	Part
+H5B0FF0F4DABE4823986055AD5275E967	C	C Education of migratory children	part		False	Part C. Education of migratory children	Part
+H8E2F31B964414D2A9D6F3243E3B10336	D	Part D. Prevention and intervention programs for children and youth who are neglected, delinquent, or at-ris ...	part		False	Part D. Prevention and intervention programs for children and youth who are neglected, delinquent, or at-risk	Part
+H2763FE1692B84FDA8691A6569BCB2130	E	E Flexibility for equitable per-pupil funding	part		False	Part E. Flexibility for equitable per-pupil funding	Part
+H2A642A36CDD749259EF015B134E9636A	E	E Flexibility for equitable per-pupil funding	part		True	Part E. Flexibility for equitable per-pupil funding	Part
+HFA2AAD18472249AEAEA3495EFAE4DFB7	F	F General provisions	part		False	Part F. General provisions	Part
+H2137F67C23EA4A299589065D794D10A9	A	A Supporting effective instruction	part		False	Part A. Supporting effective instruction	Part
+H4EF29F06BCAA4918ADB18232453EFDD6	B	B National activities	part		False	Part B. National activities	Part
+HEE8FA208D96A44FC957B63890F64A409	C	C General provisions	part		False	Part C. General provisions	Part
+H2137F67C23EA4A299589065D794D10A9	A	A Supporting effective instruction	part		False	Part A. Supporting effective instruction	Part
+H4EF29F06BCAA4918ADB18232453EFDD6	B	B National activities	part		False	Part B. National activities	Part
+HEE8FA208D96A44FC957B63890F64A409	C	C General provisions	part		False	Part C. General provisions	Part
+H7AFDC582858549EDAF68D78601B47A31	A	A Student support and academic enrichment grants	part		False	Part A. Student support and academic enrichment grants	Part
+HA0D0794242094796BE5A831FC4F736A1	B	B 21st century community learning centers	part		False	Part B. 21st century community learning centers	Part
+H6163D2EAC40A40CEAE6509FE6E2743AB	B	B 21st century community learning centers	part		True	Part B. 21st century community learning centers	Part
+HD928767AF81A4EE2A4109B334A0819CE	C	C Expanding Opportunity through Quality Charter Schools	part		False	Part C. Expanding Opportunity through Quality Charter Schools	Part
+H5238EE42B8874BB48BCD9B07EDDFEAAC	D	D Magnet schools assistance	part		False	Part D. Magnet schools assistance	Part
+H1B981437FC7A4228B5544EECE4C9B2F1	E	E Family engagement in education programs	part		False	Part E. Family engagement in education programs	Part
+H691B82D8C001406A80C8DDBB7A56DC80	E	E Family Engagement in Education Programs	part		True	Part E. Family Engagement in Education Programs	Part
+H1495D882549F4819A7315AC435FAACD0	F	F National activities	part		False	Part F. National activities	Part
+H7406F72E2F6743598BC41361F0BB9915	F	F National activities	part		True	Part F. National activities	Part
+HB93DBB5633E44AE885944CF0FBF3EC51	C	C General provisions	part		True	Part C. General provisions	Part
+H5252B17A8EBA46B28768FEE6284E8B91	E	E Approval and disapproval of State plans and local applications	part		True	Part E. Approval and disapproval of State plans and local applications	Part
+HC760C976748042FB8F8576BA787A0797	A	A Homeless children and youths	part		False	Part A. Homeless children and youths	Part
+HFABAFA8AA5F84996A6D4A584C3EE9D7A	B	B Miscellaneous; other laws	part		False	Part B. Miscellaneous; other laws	Part

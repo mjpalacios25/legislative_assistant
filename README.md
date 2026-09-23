@@ -8,6 +8,29 @@ Currently indexed: **Every Student Succeeds Act (ESSA)**
 
 Bills are parsed into nodes and connected by relationships in a Neo4j knowledge graph. Each retrieval query traverses the graph to fetch the matched section plus its siblings, providing richer surrounding context to the LLM.
 
+`backend/sample/build_knowledge_graph.py` loads the parsed TSVs from `backend/sample/parser/`, labels every node inside the bill hierarchy `:Embeddable`, then embeds them into the vector index. The embedding side is defined once in `backend/sample/embed_graph.py`:
+
+| Setting | Value |
+|---|---|
+| Embedding model | `Qwen/Qwen3-Embedding-0.6B` |
+| Vector dimension | 1024 |
+| Similarity | cosine (vectors are L2-normalised) |
+| Neo4j vector index | `ESSA` on `(:Embeddable {embedding})` |
+| Attention | FlashAttention-2 on NVIDIA, `sdpa` elsewhere |
+| Padding | left (the model pools on the last token) |
+
+FlashAttention-2 comes from the prebuilt Hub kernel `kernels-community/flash-attn2` rather
+than the `flash-attn` package, which has no wheel for torch 2.13. This needs
+`transformers >= 5.17` and the `kernels` package — both pinned in `backend/pyproject.toml`.
+Older transformers pins that kernel to v1, whose builds stop at torch 2.12, and fails with
+a misleading *"the package for FlashAttention2 doesn't seem to be installed"*. On a
+successful load transformers logs `You do not have flash_attn installed, using
+kernels-community/flash-attn2 from the kernels library instead!`. The kernel is downloaded
+on first use and cached under `~/.cache/huggingface/hub/kernels--kernels-community--flash-attn2`,
+so a fully offline (`HF_HUB_OFFLINE=1`) run works only after one online run.
+
+Anything that queries the index must embed with the same model — Neo4j rejects a search whose vector dimension does not match the index. Reuse `EMBEDDING_MODEL_NAME`, `EMBEDDING_DIMENSION`, and `VECTOR_INDEX_NAME` from `sample/embed_graph.py` rather than redeclaring them.
+
 ![ESSA Knowledge Graph](public/ESSA%20Node%20Viz.png)
 
 ---
@@ -37,10 +60,10 @@ User question
 | Frontend | Next.js 15, React 19, Tailwind CSS v4 |
 | Backend | FastAPI, Python |
 | LLM inference | MLX (`Qwen/Qwen3-4B-MLX-4bit`) — Apple Silicon only |
-| Embeddings | `sentence-transformers/all-MiniLM-L12-v2` via HuggingFace |
+| Embeddings | `Qwen/Qwen3-Embedding-0.6B` (1024-dim) via HuggingFace / sentence-transformers, FlashAttention-2 |
 | Vector store / graph | Neo4j with LangChain Neo4j integration |
 | LLM orchestration | LangChain, LangGraph |
-| Package manager | pnpm (frontend), pip (backend) |
+| Package manager | pnpm (frontend), uv (backend) |
 
 ---
 
@@ -64,29 +87,27 @@ cd legis-assistant-nextjs
 
 ### 2. Configure the backend
 
-Create a `.env` file inside the `backend/` directory:
+Create a `.env` file inside the `backend/` directory. All five keys are
+required -- `backend/config/main.py` has no defaults and will fail at import if
+any is missing:
 
 ```bash
 # backend/.env
+HUGGINGFACEHUB_API_TOKEN=hf_...
 NEO4J_URL=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_DB=neo4j
+NEO4J_PW=your-neo4j-password
 ```
 
-Create a secrets file for the Neo4j password:
-
-```bash
-mkdir -p backend/settings/secrets
-echo "your-neo4j-password" > backend/settings/secrets/db_password
-```
+`env_file` is resolved relative to the working directory, so the backend must be
+started from `backend/`.
 
 ### 3. Install backend dependencies
 
 ```bash
 cd backend
-python -m venv env
-source env/bin/activate
-pip install -r requirements.txt
+uv sync
 ```
 
 > **Note:** The first run will download the Qwen3-4B model weights (~2.5 GB) and the embedding model from HuggingFace.
@@ -98,14 +119,33 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-### 5. Install frontend dependencies
+### 5. Configure the frontend
 
 ```bash
 # From the project root
+cp .env.example .env.local
+```
+
+`BACKEND_URL` tells the Next.js server where FastAPI lives. The browser never
+calls FastAPI directly -- `next.config.ts` rewrites `/api/*` through to
+`BACKEND_URL`, so requests stay same-origin and CORS is not on the path. It is
+deliberately not prefixed `NEXT_PUBLIC_`, so it is never inlined into the client
+bundle.
+
+Leave `NEXT_PUBLIC_API_URL` empty unless the browser must reach the backend at
+an absolute URL instead of through the rewrite.
+
+Set `NEXT_PUBLIC_ADAPTER_TYPE=in-memory` to serve chat from a local mock stream.
+That lets you work on the frontend without starting the backend, which loads the
+LLM, the embedding model and a Neo4j connection at import time.
+
+### 6. Install frontend dependencies
+
+```bash
 pnpm install
 ```
 
-### 6. Start the frontend
+### 7. Start the frontend
 
 ```bash
 pnpm dev

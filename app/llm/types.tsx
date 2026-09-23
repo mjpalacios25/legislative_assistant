@@ -77,10 +77,19 @@ const newMessageSchema = z.object({
   type: z.literal("new_message"),
 });
 
+// The backend emits this when a handler catches an exception. It must be part
+// of the union: LLMEventValueSchema.parse() throws on an unknown discriminator,
+// which would kill the read loop instead of surfacing the failure.
+const streamErrorSchema = z.object({
+  type: z.literal("error"),
+  message: z.string(),
+});
+
 export const LLMEventValueSchema = z.discriminatedUnion("type", [
   LLMChunkSchema,
   messagePatchSchema,
   newMessageSchema,
+  streamErrorSchema,
 ]);
 
 const ChatCompletionChunkChoiceDeltaSchema = z.object({
