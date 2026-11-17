@@ -21,7 +21,9 @@ retrieval_query = """
     """
 
 vector_store = Neo4jVector.from_existing_index(
-    embedding=embed_builder.set_embedding_model(),
+    # Reuse the model VectorStore.__init__ already loaded; calling
+    # set_embedding_model() here would load a second copy onto the GPU.
+    embedding=embed_builder.embedding_model,
     url=settings.NEO4J_URL,
     username=settings.NEO4J_USERNAME,
     password=settings.NEO4J_PW,

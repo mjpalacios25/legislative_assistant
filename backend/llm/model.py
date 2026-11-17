@@ -38,7 +38,7 @@ if device_manager.is_nvidia():
         ),
         pipeline_kwargs = dict(
             # KV cache, not weights, is the memory ceiling now. Raise if headroom allows.
-            max_new_tokens = 4096,
+            max_new_tokens = 4096, #model crd recommends 32,768
             do_sample = True,
             temperature = 1.0,
             top_p = 0.95,
