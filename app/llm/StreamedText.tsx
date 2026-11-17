@@ -24,5 +24,5 @@ export default function StreamedText({
 }
 
 function PulsatingDot() {
-  return <div className="h-2 w-2 animate-pulse rounded-full bg-black"></div>;
+  return <div className="h-2 w-2 animate-pulse-dot rounded-full bg-foreground"></div>;
 }

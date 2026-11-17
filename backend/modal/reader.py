@@ -5,7 +5,6 @@ model, tokenizer = load("Qwen/Qwen3-4B-MLX-4bit")
 
 
 
-# %%
 prompt_in_chat_format = [
     {
         "role": "system",
@@ -86,8 +85,3 @@ def answer_with_rag(
 
     return response, relevant_docs
 
-
-
-
-# %%
-full_response = answer_with_rag(question, model, tokenizer, vector_store )

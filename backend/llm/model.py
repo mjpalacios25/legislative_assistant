@@ -1,147 +1,86 @@
-"""
-Shared MLX LLM singleton with compatibility patches for mlx-lm 0.28.3 +
-langchain-community 0.4.1. Import this module before any other code that
-touches MLXPipeline or ChatMLX.
-"""
-from langchain_community.llms.mlx_pipeline import MLXPipeline
-from langchain_community.chat_models.mlx import ChatMLX
+from sample.system_check import DeviceManager
 
 
-# --- Patch 1: MLXPipeline._call ---
-# langchain-community 0.4.1 passes a `formatter` kwarg to mlx_lm.generate(),
-# which mlx-lm 0.28.3 forwards to generate_step() — generate_step rejects it.
-def _patched_call(self, prompt, stop=None, run_manager=None, **kwargs):
-    from mlx_lm import generate
-    from mlx_lm.sample_utils import make_logits_processors, make_sampler
+device_manager = DeviceManager()
 
-    pipeline_kwargs = kwargs.get("pipeline_kwargs", self.pipeline_kwargs) or {}
-    temp = pipeline_kwargs.get("temp", 0.0)
-    max_tokens = pipeline_kwargs.get("max_tokens", 100)
-    verbose = pipeline_kwargs.get("verbose", False)
-    repetition_penalty = pipeline_kwargs.get("repetition_penalty", None)
-    repetition_context_size = pipeline_kwargs.get("repetition_context_size", None)
-    top_p = pipeline_kwargs.get("top_p", 1.0)
-    min_p = pipeline_kwargs.get("min_p", 0.0)
-    min_tokens_to_keep = pipeline_kwargs.get("min_tokens_to_keep", 1)
+# Whether `chat_model` implements LangChain's async API natively. Set per
+# branch below. Declared here first so the name always exists, even if no
+# branch matches -- a CPU-only host should fail on the missing `chat_model`
+# rather than on a more confusing NameError about this flag.
+SUPPORTS_NATIVE_ASYNC = False
 
-    sampler = make_sampler(temp, top_p, min_p, min_tokens_to_keep)
-    logits_processors = make_logits_processors(None, repetition_penalty, repetition_context_size)
+if device_manager.is_nvidia():
+    ## Use the NVIDIA GPU for inference and download the model from Hugging Face Hub
+    import torch
+    from transformers import BitsAndBytesConfig
+    from langchain_huggingface import HuggingFacePipeline, ChatHuggingFace
 
-    return generate(
-        model=self.model,
-        tokenizer=self.tokenizer,
-        prompt=prompt,
-        max_tokens=max_tokens,
-        verbose=verbose,
-        sampler=sampler,
-        logits_processors=logits_processors,
+    # Qwen3.5-9B is 17.98 GiB at bf16, which does not fit in 16 GB of VRAM.
+    # NF4 brings the weights to ~6 GiB and leaves the rest for KV cache.
+    # (Qwen3.5-27B-GPTQ-Int4 is not an option here: its `dynamic` config leaves
+    # attention/visual layers in bf16, so it is 28.15 GiB on disk.)
+    quant_config = BitsAndBytesConfig(
+        load_in_4bit = True,
+        bnb_4bit_quant_type = "nf4",
+        bnb_4bit_compute_dtype = torch.bfloat16,
+        bnb_4bit_use_double_quant = True,
     )
 
-
-MLXPipeline._call = _patched_call
-
-
-# --- Patch 2: MLXPipeline._stream ---
-# generate_step moved from mlx_lm.utils to mlx_lm.generate in mlx-lm 0.28.3.
-def _patched_stream(self, prompt, stop=None, run_manager=None, **kwargs):
-    import mlx.core as mx
-    from mlx_lm.generate import generate_step
-    from mlx_lm.sample_utils import make_logits_processors, make_sampler
-    from langchain_core.outputs import GenerationChunk
-
-    pipeline_kwargs = kwargs.get("pipeline_kwargs", self.pipeline_kwargs) or {}
-    temp = pipeline_kwargs.get("temp", 0.0)
-    max_new_tokens = pipeline_kwargs.get("max_tokens", 100)
-    repetition_penalty = pipeline_kwargs.get("repetition_penalty", None)
-    repetition_context_size = pipeline_kwargs.get("repetition_context_size", None)
-    top_p = pipeline_kwargs.get("top_p", 1.0)
-    min_p = pipeline_kwargs.get("min_p", 0.0)
-    min_tokens_to_keep = pipeline_kwargs.get("min_tokens_to_keep", 1)
-
-    prompt = self.tokenizer.encode(prompt, return_tensors="np")
-    prompt_tokens = mx.array(prompt[0])
-    eos_token_id = self.tokenizer.eos_token_id
-    detokenizer = self.tokenizer.detokenizer
-    detokenizer.reset()
-
-    sampler = make_sampler(temp or 0.0, top_p, min_p, min_tokens_to_keep)
-    logits_processors = make_logits_processors(None, repetition_penalty, repetition_context_size)
-
-    for (token, prob), n in zip(
-        generate_step(
-            prompt=prompt_tokens,
-            model=self.model,
-            sampler=sampler,
-            logits_processors=logits_processors,
+    llm = HuggingFacePipeline.from_model_id(
+        model_id = "Qwen/Qwen3.5-9B",
+        task = "text-generation",
+        # `device_map` belongs here rather than in model_kwargs, and `device`
+        # must stay unset — from_model_id rejects being given both.
+        device_map = "auto",
+        model_kwargs = dict(
+            quantization_config = quant_config,
+            dtype = torch.bfloat16,
         ),
-        range(max_new_tokens),
-    ):
-        detokenizer.add_token(token)
-        detokenizer.finalize()
-        text = detokenizer.last_segment
-        if text:
-            chunk = GenerationChunk(text=text)
-            if run_manager:
-                run_manager.on_llm_new_token(chunk.text)
-            yield chunk
-        if token == eos_token_id or (stop is not None and text in stop):
-            break
+        pipeline_kwargs = dict(
+            # KV cache, not weights, is the memory ceiling now. Raise if headroom allows.
+            max_new_tokens = 4096, #model crd recommends 32,768
+            do_sample = True,
+            temperature = 1.0,
+            top_p = 0.95,
+            top_k = 20,
+            min_p = 0.0,
+            # presence_penalty removed: vLLM/OpenAI-style, not a HF generate() kwarg.
+            repetition_penalty = 1.0,
+            return_full_text = False,
+        )
+    )
+
+    chat_model = ChatHuggingFace(llm=llm)
+
+    # ChatHuggingFace._agenerate raises NotImplementedError when the wrapped llm
+    # is a HuggingFacePipeline, and _astream is unguarded -- it reaches for
+    # `self.llm.async_client`, which only exists on HuggingFaceEndpoint. Callers
+    # must go through the thread bridge in services/llm_service.py.
+    SUPPORTS_NATIVE_ASYNC = False
 
 
-MLXPipeline._stream = _patched_stream
+elif device_manager.is_apple_silicon():
+    ## Use the Apple Silicon GPU for inference and download the model from Hugging Face Hub
+
+    from langchain_community.llms.mlx_pipeline import MLXPipeline
+    from langchain_community.chat_models.mlx import ChatMLX
 
 
-# --- Patch 3: ChatMLX._stream ---
-# chat.astream_log() calls ChatMLX._stream(), which also had the stale
-# mlx_lm.utils import. Critical for streaming on the non-RAG path.
-def _patched_chat_stream(self, messages, stop=None, run_manager=None, **kwargs):
-    import mlx.core as mx
-    from mlx_lm.generate import generate_step
-    from mlx_lm.sample_utils import make_logits_processors, make_sampler
-    from langchain_core.outputs import ChatGenerationChunk
-    from langchain_core.messages import AIMessageChunk
+    llm = MLXPipeline.from_model_id(
+        "Qwen/Qwen3-4B-MLX-4bit",
+        pipeline_kwargs={"max_tokens": 4096, "temp": 0.1},
+    )
 
-    model_kwargs = kwargs.get("model_kwargs", self.llm.pipeline_kwargs) or {}
-    temp = model_kwargs.get("temp", 0.0)
-    max_new_tokens = model_kwargs.get("max_tokens", 100)
-    repetition_penalty = model_kwargs.get("repetition_penalty", None)
-    repetition_context_size = model_kwargs.get("repetition_context_size", None)
-    top_p = model_kwargs.get("top_p", 1.0)
-    min_p = model_kwargs.get("min_p", 0.0)
-    min_tokens_to_keep = model_kwargs.get("min_tokens_to_keep", 1)
+    chat_model = ChatMLX(llm=llm)
 
-    llm_input = self._to_chat_prompt(messages, tokenize=True, return_tensors="np")
-    prompt_tokens = mx.array(llm_input[0])
-    eos_token_id = self.tokenizer.eos_token_id
-
-    sampler = make_sampler(temp or 0.0, top_p, min_p, min_tokens_to_keep)
-    logits_processors = make_logits_processors(None, repetition_penalty, repetition_context_size)
-
-    for (token, prob), n in zip(
-        generate_step(
-            prompt_tokens,
-            self.llm.model,
-            sampler=sampler,
-            logits_processors=logits_processors,
-        ),
-        range(max_new_tokens),
-    ):
-        text = self.tokenizer.decode(token.item() if not isinstance(token, int) else token)
-        if text:
-            chunk = ChatGenerationChunk(message=AIMessageChunk(content=text))
-            if run_manager:
-                run_manager.on_llm_new_token(text, chunk=chunk)
-            yield chunk
-        if token == eos_token_id or (stop is not None and text in stop):
-            break
+    # ChatMLX does not override _astream, and its _agenerate delegates to
+    # MLXPipeline, which inherits langchain-core's run_in_executor fallback.
+    # ainvoke/astream therefore work directly.
+    SUPPORTS_NATIVE_ASYNC = True
 
 
-ChatMLX._stream = _patched_chat_stream
-# --- End patches ---
-
-llm = MLXPipeline.from_model_id(
-    "Qwen/Qwen3-4B-MLX-4bit",
-    pipeline_kwargs={"max_tokens": 4096, "temp": 0.1},
-)
-
-chat_model = ChatMLX(llm=llm)
+if __name__ == "__main__":
+    # Test the chat model
+    test_prompt = "Hello, how are you?"
+    response = chat_model.invoke([{"role": "user", "content": test_prompt}])
+    print("Response:", response)

@@ -56,37 +56,36 @@ export default function Sidebar() {
   return (
     <aside className="inset-y fixed left-0 z-20 flex h-full flex-col border-r">
       <div className="border-b p-2">
-        <Link href={"/"}>
-          <Button variant="outline" size="icon" aria-label="Home">
+        <Button asChild variant="outline" size="icon" aria-label="Home">
+          <Link href="/">
             <Sparkles className="size-5 fill-foreground" />
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
-      <nav className={`grid gap-1 p-2`}>
-        {buttonDetails.map(({ icon, label, paths }, index) => (
-          <Tooltip.Provider key={index}>
-
+      <Tooltip.Provider>
+        <nav className="grid gap-1 p-2">
+          {buttonDetails.map(({ icon, label, paths }, index) => (
             <Tooltip.Root key={index}>
               <Tooltip.Trigger asChild>
-                <Link href={(paths ?? ["/"])[0]}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={label}
-                    className={`$rounded-lg ${paths?.includes(location) ? "bg-muted" : ""}`}
-                  >
-                    {icon}
-                  </Button>
-                </Link>
+                {/* Button renders the Link via Slot, so this is a single <a>.
+                    Nesting <button> inside <a> is invalid content nesting. */}
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon"
+                  aria-label={label}
+                  className={`rounded-lg ${paths?.includes(location) ? "bg-muted" : ""}`}
+                >
+                  <Link href={(paths ?? ["/"])[0]}>{icon}</Link>
+                </Button>
               </Tooltip.Trigger>
               <TooltipContent side="right" sideOffset={5}>
                 {label}
               </TooltipContent>
             </Tooltip.Root>
-          </Tooltip.Provider>
-          
-        ))}
-      </nav>
+          ))}
+        </nav>
+      </Tooltip.Provider>
     </aside>
   );
 }

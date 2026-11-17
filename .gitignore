@@ -11,7 +11,11 @@
 !.yarn/versions
 
 # python virtual environment
-/backend/venv/
+/backend/.venv/
+
+# python bytecode
+__pycache__/
+*.pyc
 
 # testing
 /coverage
@@ -35,6 +39,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 /backend/settings/secrets
 
 # vercel

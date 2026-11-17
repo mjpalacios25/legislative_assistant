@@ -20,7 +20,7 @@ export function useCompletion({
   useChatQuery?: UseChatQuery;
 }): QueryResult<string> {
   const [isReading, setIsReading] = useState<boolean>(false);
-  const [readingError, setReadingError] = useState<boolean>(false);
+  const [readingError, setReadingError] = useState<Error | null>(null);
   const {
     data: reader,
     isLoading,
@@ -53,9 +53,9 @@ export function useCompletion({
       },
     })
       .then(() => setIsReading(false))
-      .catch((err: any) => {
-        console.log("Error reading stream: ", err);
-        setReadingError(err);
+      .catch((err: unknown) => {
+        console.error("Error reading stream: ", err);
+        setReadingError(err instanceof Error ? err : new Error(String(err)));
       });
   }, [reader]);
   return {

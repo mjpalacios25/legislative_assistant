@@ -1,0 +1,67 @@
+[project]
+name = "legis-assistant-nextjs"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "accelerate>=1.0.0",
+    "beautifulsoup4==4.14.3",
+    "bitsandbytes>=0.50.0",
+    "fastapi==0.135.1",
+    "instructor==1.14.5",
+    "ipython==9.0.1",
+    "kernels>=0.16.0,<0.17",
+    "langchain>=1.2.15",
+    "langchain-community==0.4.1",
+    "langchain-core==1.2.20",
+    "langchain-huggingface==1.2.1",
+    "langchain-neo4j>=0.10.0",
+    "logfire==4.29.0",
+    "lxml>=6.1.1",
+    "neo4j>=6.2.0",
+    "openai==2.29.0",
+    "pandas==3.0.1",
+    "pydantic==2.12.5",
+    "pydantic-evals==1.70.0",
+    "pydantic-settings==2.13.1",
+    "pytest==9.0.2",
+    "requests==2.32.5",
+    "sentence-transformers>=6.0.1",
+    "tabulate==0.10.0",
+    "tenacity==9.1.2",
+    "torch>=2.13.0",
+    "tqdm==4.67.1",
+    # Range, not ==: qwen3_5 support landed in 5.14.1, and langchain-huggingface
+    # itself requires transformers>=5.0.0,<6. An exact pin here silently reverts
+    # manual upgrades on the next `uv sync`.
+    # The >=5.17 floor is for FlashAttention-2 in sample/embed_graph.py: 5.17 is
+    # the first release that resolves the `kernels-community/flash-attn2` Hub
+    # kernel to v3, the first version with a torch stable-ABI (torch 2.13) build.
+    # Below 5.17 the kernel pins to v1 and FA2 fails to load. `kernels` above is
+    # bound to 0.16.x to match this transformers version's own supported range.
+    "transformers>=5.17.0,<6",
+    "uvicorn>=0.53.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Flat layout: first-party imports are rooted at backend/ (e.g. `from config.main
+# import settings`), so these are installed as top-level packages.
+# modal/ is excluded because it shadows the Modal PyPI package that
+# modal/modal_app.py itself imports. NOTE: this only takes effect for a real
+# wheel build — the editable install puts all of backend/ on sys.path, so modal/
+# still shadows there. Renaming the directory is the durable fix.
+[tool.hatch.build.targets.wheel]
+only-include = [
+    "chat",
+    "config",
+    "evaluations",
+    "llm",
+    "sample",
+    "services",
+    "vectorstore",
+    "main.py",
+    "schemas.py",
+]

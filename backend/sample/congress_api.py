@@ -1,15 +1,8 @@
-# %% [markdown]
-# ## Accessing API
-
-# %%
 import requests
 import json
 from IPython.display import HTML
 from base64 import b64encode
 
-# %%
-#optional: use Congress API Agent
-#set up method wrapper and CDG Client classes
 
 """
     CDG Client - An example client for the Congress.gov API.
@@ -147,7 +140,6 @@ class CDGClient:
         self.__dict__[method_name] = method
         return method
 
-# %%
 
 # BILL_HR = "hr"
 # BILL_NUM = 21
@@ -160,30 +152,22 @@ CONGRESS = 118
 
 offset = 0
 
-# %%
+
 bill_info = []
 
-# %%
+
 essa = {}
 
-# %%
+
 # trimmed_bill_info = bill_info[:10]
 
-# %%
+
 # text_links = []
 
-# %%
+
 # cosponsors_list = []
 
-# %%
-"""
-    CDG Examples
 
-    Below are some examples of using the Bill endpoint with XML parsing.
-
-    @copyright: 2022, Library of Congress
-    @license: CC0 1.0
-"""
 import xml.etree.ElementTree as ET
 import json
 import sys
@@ -459,8 +443,8 @@ def get_text(client, bill, congress, chamber, number):
 #     except OSError as err:
 #         print('Error:', err)
 
-# %%
-from backend.config.main import settings
+
+from config.main import settings
 api_key = settings.CONGRESS_API_KEY
 client = CDGClient(api_key, response_format="json", offset = 0)
 

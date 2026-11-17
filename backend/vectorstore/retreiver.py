@@ -1,21 +1,15 @@
+import asyncio
 import re
 from typing import List, Tuple
 
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_neo4j import Neo4jVector
 from langchain_core.documents import Document
 from langchain.messages import HumanMessage, SystemMessage
-
 from config.main import settings
+from sample.embed_graph import EMBEDDING_MODEL_NAME, VECTOR_INDEX_NAME, VectorStore
+from services.llm_service import acomplete
 
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L12-v2"
-
-embedding_model = HuggingFaceEmbeddings(
-    model_name=EMBEDDING_MODEL_NAME,
-    multi_process=False,
-    model_kwargs={"device": "mps"},
-    encode_kwargs={"normalize_embeddings": True, "convert_to_numpy": True},
-)
+embed_builder = VectorStore()
 
 retrieval_query = """
     WITH node AS doc, score AS similarity
@@ -27,12 +21,14 @@ retrieval_query = """
     """
 
 vector_store = Neo4jVector.from_existing_index(
-    embedding=embedding_model,
+    # Reuse the model VectorStore.__init__ already loaded; calling
+    # set_embedding_model() here would load a second copy onto the GPU.
+    embedding=embed_builder.embedding_model,
     url=settings.NEO4J_URL,
     username=settings.NEO4J_USERNAME,
     password=settings.NEO4J_PW,
     database=settings.NEO4J_DB,
-    index_name="ESSA",
+    index_name= VECTOR_INDEX_NAME,
     retrieval_query=retrieval_query,
 )
 
@@ -44,15 +40,6 @@ Now here is the question you need to answer.
 Question: {question}"""
 
 
-def _extract_text(content) -> str:
-    if isinstance(content, str):
-        return content
-    return "".join(
-        block if isinstance(block, str) else block.get("text", "")
-        for block in content
-    )
-
-
 async def build_rag_messages(
     question: str,
     knowledge_index: Neo4jVector,
@@ -61,7 +48,9 @@ async def build_rag_messages(
 ) -> List:
     """Retrieve docs and build RAG prompt messages (no LLM call)."""
     print("=> Retrieving documents...")
-    relevant_docs = knowledge_index.similarity_search(query=question, k=num_retrieved_docs)
+    relevant_docs = await asyncio.to_thread(
+        knowledge_index.similarity_search, query=question, k=num_retrieved_docs
+    )
     relevant_docs = [doc.page_content for doc in relevant_docs][:num_docs_final]
 
     context = "\nExtracted documents:\n"
@@ -89,7 +78,9 @@ async def answer_with_rag(
 ) -> Tuple[str, List[Document]]:
     """Retrieve docs, invoke LLM, return (clean_answer_text, source_docs)."""
     print("=> Retrieving documents...")
-    relevant_docs = knowledge_index.similarity_search(query=question, k=num_retrieved_docs)
+    relevant_docs = await asyncio.to_thread(
+        knowledge_index.similarity_search, query=question, k=num_retrieved_docs
+    )
     relevant_docs_text = [doc.page_content for doc in relevant_docs][:num_docs_final]
 
     context = "\nExtracted documents:\n"
@@ -107,9 +98,8 @@ async def answer_with_rag(
     ]
 
     print("=> Generating answer...")
-    response = llm.invoke(local_messages)
+    raw_content = await acomplete(llm, local_messages)
 
-    raw_content = _extract_text(response.content)
     clean_content = re.sub(r"<think>.*?</think>\s*", "", raw_content, flags=re.DOTALL)
     print("=> answer without thinking block", clean_content)
 

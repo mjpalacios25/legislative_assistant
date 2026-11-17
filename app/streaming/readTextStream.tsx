@@ -35,17 +35,20 @@ export async function readTextStream({
 
       const index = line.indexOf(":");
       const field = line.substring(0, index);
-      let value = line.substring(index + 1); // +1 to skip the colon itself
+      const raw = line.substring(index + 1); // +1 to skip the colon itself
 
-      // we assume it's a JSON for code simplicity
+      // Frames are assumed to carry JSON. A frame that does not parse is
+      // skipped: passing the raw string on would only throw downstream in
+      // schema validation and kill the whole stream over one bad frame.
+      let value: Record<string, unknown> | string;
       try {
-        value = JSON.parse(value);
+        value = JSON.parse(raw);
       } catch (e) {
         if (e instanceof SyntaxError) {
-          console.log(e);
-        } else {
-          throw e;
+          console.warn("Skipping unparseable SSE frame:", raw);
+          continue;
         }
+        throw e;
       }
 
       switch (field) {

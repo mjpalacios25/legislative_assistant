@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { describe, it } from "vitest";
 import { render, screen } from '@testing-library/react'
-import { act } from "react-dom/test-utils";
+import { act } from "react";
 import { useCompletion } from "../completion/useCompletion";
 import { buildSSE, buildMockStream } from "../streaming/mock";
 import { Message, UseChatQuery } from "../llm/types";

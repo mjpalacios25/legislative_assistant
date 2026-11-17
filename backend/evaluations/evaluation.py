@@ -1,31 +1,26 @@
+import sys
+from pathlib import Path
 
+sys.path.append(str(Path(__file__).parent.parent))
 
-from pydantic import BaseModel
 from dataclasses import dataclass
 from pydantic_evals.evaluators import Evaluator, EvaluatorContext, EvaluationResult
 from pydantic_evals import Dataset
-from langchain_community.llms.mlx_pipeline import MLXPipeline
-from langchain_community.chat_models.mlx import ChatMLX
 from langchain_neo4j import Neo4jVector
 import asyncio
 import re
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from generate_dataset import Chunk, ChunkEval
-from typing import Literal, Optional
-from vectorstore.retreiver import embedding_model
+# Embed queries with the exact model the index was built with -- Neo4j rejects
+# a search whose vector dimension does not match the index. Importing from
+# sample.embed_graph (not vectorstore.retreiver) avoids opening the chat
+# endpoint's Neo4j store as an import side effect.
+from sample.embed_graph import VectorStore, VECTOR_INDEX_NAME
 from config.main import PUBLIC_DIR, settings
 import logfire
 import concurrent.futures
 import tabulate
 
-
-# llm = MLXPipeline.from_model_id(
-#     "Qwen/Qwen3-4B-MLX-4bit",
-#     pipeline_kwargs={"max_tokens": 4096, "temp": 0.1},
-# )
-
-# chat_model = ChatMLX(llm=llm)
 
 def _normalize(text: str) -> str:
     """Remove all whitespace and lowercase for robust comparison.
@@ -129,7 +124,10 @@ def visualise_scores(result: EvaluationResult):
 
 
 async def main():
-    logfire.configure()
+    # Tracing is optional: export to Logfire only when LOGFIRE_TOKEN is set,
+    # instead of raising LogfireConfigError on machines that never ran
+    # `logfire auth`.
+    logfire.configure(send_to_logfire="if-token-present")
 
     # Plain store — no retrieval_query so raw doc text is returned (exact match
     # to expected_output) and the k parameter is respected (no LIMIT override).
@@ -141,12 +139,12 @@ async def main():
 
     """
     eval_vector_store = Neo4jVector.from_existing_index(
-        embedding=embedding_model,
+        embedding=VectorStore().embedding_model,
         url=settings.NEO4J_URL,
         username=settings.NEO4J_USERNAME,
         password=settings.NEO4J_PW,
         database=settings.NEO4J_DB,
-        index_name="ESSA",
+        index_name=VECTOR_INDEX_NAME,
         retrieval_query=retrieval_query
     )
 
